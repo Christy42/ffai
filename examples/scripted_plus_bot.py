@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 
 import ffai
+import examples.grodbot
+import examples.scripted_bot_example
 from ffai import Action, ActionType, Square, BBDieResult, Skill, PassDistance, Tile, Rules, Formation, ProcBot
 import ffai.ai.pathfinding as pf
 import time
 
-class MyScriptedBot(ProcBot):
+
+class ScriptedPlusBot(ProcBot):
 
     def __init__(self, name):
         super().__init__(name)
@@ -99,10 +102,17 @@ class MyScriptedBot(ProcBot):
 
     def reroll(self, game):
         """
-        Select between USE_REROLL and DONT_USE_REROLL
+        Select between USE_REROLL and DON'T_USE_REROLL
         """
+        unused_teammates = []
+        for player in self.my_team.players:
+            if player.position is not None \
+                    and not player.state.used and player.state.up:
+                unused_teammates.append(player)
         reroll_proc = game.get_procedure()
         context = reroll_proc.context
+        if len(unused_teammates) < 4:
+            return Action(ActionType.DONT_USE_REROLL)
         if type(context) == ffai.Dodge:
             return Action(ActionType.USE_REROLL)
         if type(context) == ffai.Pickup:
@@ -119,7 +129,8 @@ class MyScriptedBot(ProcBot):
             for die in context.roll.dice:
                 if die.get_value() == BBDieResult.ATTACKER_DOWN:
                     attackers_down += 1
-                elif die.get_value() == BBDieResult.BOTH_DOWN and not attacker.has_skill(Skill.BLOCK) and not attacker.has_skill(Skill.WRESTLE):
+                elif die.get_value() == BBDieResult.BOTH_DOWN and not attacker.has_skill(Skill.BLOCK) \
+                        and not attacker.has_skill(Skill.WRESTLE):
                     attackers_down += 1
             if attackers_down > 0 and context.favor != self.my_team:
                 return Action(ActionType.USE_REROLL)
@@ -176,8 +187,8 @@ class MyScriptedBot(ProcBot):
             self.last_turn = turn
             self.last_half = half
             self.actions = []
-            #print(f"Half: {half}")
-            #print(f"Turn: {turn}")
+            # print(f"Half: {half}")
+            # print(f"Turn: {turn}")
 
         # End turn if only action left
         if len(game.state.available_actions) == 1:
@@ -198,13 +209,14 @@ class MyScriptedBot(ProcBot):
     def _get_next_action(self):
         action = self.actions[0]
         self.actions = self.actions[1:]
-        #print(f"Action: {action.to_json()}")
+        # print(f"Action: {action.to_json()}")
         return action
 
     def _make_plan(self, game, ball_carrier):
         print("1. Stand up marked players")
         for player in self.my_team.players:
-            if player.position is not None and not player.state.up and not player.state.stunned and not player.state.used:
+            if player.position is not None and not player.state.up \
+                    and not player.state.stunned and not player.state.used:
                 if game.num_tackle_zones_in(player) > 0:
                     self.actions.append(Action(ActionType.START_MOVE, player=player))
                     self.actions.append(Action(ActionType.STAND_UP))
@@ -228,7 +240,8 @@ class MyScriptedBot(ProcBot):
                 # Get players in scoring range
                 unused_teammates = []
                 for player in self.my_team.players:
-                    if player.position is not None and player != ball_carrier and not player.state.used and player.state.up:
+                    if player.position is not None and player != ball_carrier \
+                            and not player.state.used and player.state.up:
                         unused_teammates.append(player)
 
                 # Find other players in scoring range
@@ -268,7 +281,7 @@ class MyScriptedBot(ProcBot):
                     for step in td_path.steps:
                         if game.num_tackle_zones_at(ball_carrier, step) > 0:
                             break
-                        if len(steps) >= ball_carrier.num_moves_left():
+                        if len(steps) >= ball_carrier.num_moves_left(include_gfi=False):
                             break
                         steps.append(step)
                     if len(steps) > 0:
@@ -279,11 +292,13 @@ class MyScriptedBot(ProcBot):
                         return
 
         print("3. Safe blocks")
-        attacker, defender, p_self_up, p_opp_down, block_p_fumble_self, block_p_fumble_opp = self._get_safest_block(game)
+        attacker, defender, p_self_up, p_opp_down, block_p_fumble_self, \
+            block_p_fumble_opp = self._get_safest_block(game)
         if attacker is not None and p_self_up > 0.94 and block_p_fumble_self == 0:
             self.actions.append(Action(ActionType.START_BLOCK, player=attacker))
             self.actions.append(Action(ActionType.BLOCK, position=defender.position))
-            print(f"Safe block with {attacker.role.name} -> {defender.role.name}, p_self_up={p_self_up}, p_opp_down={p_opp_down}")
+            print(f"Safe block with {attacker.role.name} -> {defender.role.name}"
+                  f", p_self_up={p_self_up}, p_opp_down={p_opp_down}")
             return
 
         print("4. Pickup ball")
@@ -307,10 +322,11 @@ class MyScriptedBot(ProcBot):
                     self.actions.append(Action(ActionType.STAND_UP))
                 for step in pickup_path.steps:
                     self.actions.append(Action(ActionType.MOVE, position=step))
-                #print(f"Pick up the ball with {pickup_player.role.name}, p={pickup_p}")
+                # print(f"Pick up the ball with {pickup_player.role.name}, p={pickup_p}")
                 # Find safest path towards endzone
                 if game.num_tackle_zones_at(pickup_player, game.get_ball_position()) == 0:
-                    td_path = pf.get_safest_scoring_path(game, pickup_player, from_position=game.get_ball_position(), num_moves_used=len(pickup_path.steps), max_search_distance=30)
+                    td_path = pf.get_safest_scoring_path(game, pickup_player, from_position=game.get_ball_position(),
+                                                         num_moves_used=len(pickup_path.steps), max_search_distance=30)
                     if td_path is not None:
                         steps = []
                         for step in td_path.steps:
@@ -365,18 +381,22 @@ class MyScriptedBot(ProcBot):
             for blitzer in open_players:
                 if blitzer.position is not None and not blitzer.state.used and blitzer.has_skill(Skill.BLOCK):
                     for opp_player in self.opp_team.players:
-                        if opp_player.position is None or opp_player.position.distance(blitzer.position) > blitzer.num_moves_left():
+                        if opp_player.position is None or opp_player.position.distance(blitzer.position) > \
+                                blitzer.num_moves_left():
                             continue
-                        if opp_player.state.up and not (opp_player.has_skill(Skill.BLOCK) and opp_player != ball_carrier):
+                        if opp_player.state.up and not (opp_player.has_skill(Skill.BLOCK) and
+                                                        opp_player != ball_carrier):
                             for adjacent_position in game.get_adjacent_squares(opp_player.position, occupied=False):
                                 path = pf.get_safest_path(game, blitzer, adjacent_position, num_moves_used=1)
                                 if path is None:
                                     continue
                                 # Include an addition GFI to block if needed
-                                moves = blitzer.get_ma() if blitzer.state.up or blitzer.has_skill(Skill.JUMP_UP) else blitzer.get_ma() + 3
+                                moves = blitzer.get_ma() if blitzer.state.up or blitzer.has_skill(Skill.JUMP_UP) else \
+                                    blitzer.get_ma() + 3
                                 if len(path.steps) > moves:
                                     path.prob = path.prob * (5.0/6.0)
-                                p_self, p_opp, p_fumble_self, p_fumble_opp = game.get_blitz_probs(blitzer, adjacent_position, opp_player)
+                                p_self, p_opp, p_fumble_self, p_fumble_opp = \
+                                    game.get_blitz_probs(blitzer, adjacent_position, opp_player)
                                 p_self_up = path.prob * (1-p_self)
                                 p_opp = path.prob * p_opp
                                 p_fumble_opp = p_fumble_opp * path.prob
@@ -460,13 +480,14 @@ class MyScriptedBot(ProcBot):
             if ball_carrier is None:
                 path = pf.get_safest_path(game, player, game.get_ball_position(), max_search_distance=30)
             else:
-                path = pf.get_safest_path_to_player(game, player, ball_carrier)
+                path = pf.get_safest_path_to_player(game, player, ball_carrier, max_search_distance=30)
             if path is not None:
                 steps = []
                 for step in path.steps:
                     if len(steps) >= player.get_ma() + (3 if not player.state.up else 0):
                         break
-                    if ball_carrier is not None and ball_carrier.team == self.my_team and step in game.get_adjacent_squares(ball_carrier.position):
+                    if ball_carrier is not None and ball_carrier.team == self.my_team \
+                            and step in game.get_adjacent_squares(ball_carrier.position):
                         break
                     steps.append(step)
                     if game.num_tackle_zones_at(player, step) > 0:
@@ -481,7 +502,8 @@ class MyScriptedBot(ProcBot):
                     return
 
         print("10. Risky blocks")
-        attacker, defender, p_self_up, p_opp_down, block_p_fumble_self, block_p_fumble_opp = self._get_safest_block(game)
+        attacker, defender, p_self_up, p_opp_down, block_p_fumble_self, block_p_fumble_opp = \
+            self._get_safest_block(game)
         if attacker is not None and (p_opp_down > (1-p_self_up) or block_p_fumble_opp > 0):
             self.actions.append(Action(ActionType.START_BLOCK, player=attacker))
             self.actions.append(Action(ActionType.BLOCK, position=defender.position))
@@ -511,8 +533,8 @@ class MyScriptedBot(ProcBot):
                         block_defender = defender
                         block_p_fumble_self = p_fumble_self
                         block_p_fumble_opp = p_fumble_opp
-        return block_attacker, block_defender, block_p_self_up, block_p_opp_down, block_p_fumble_self, block_p_fumble_opp
-
+        return block_attacker, block_defender, block_p_self_up, \
+            block_p_opp_down, block_p_fumble_self, block_p_fumble_opp
 
     def quick_snap(self, game):
         return Action(ActionType.END_TURN)
@@ -532,10 +554,9 @@ class MyScriptedBot(ProcBot):
                 self.actions.append(Action(ActionType.START_MOVE, player=ball_carrier))
                 for step in td_path.steps:
                     self.actions.append(Action(ActionType.MOVE, position=step))
-                #print(f"Scoring with {ball_carrier.role.name}, p={td_path.prob}")
+                # print(f"Scoring with {ball_carrier.role.name}, p={td_path.prob}")
                 return
         return Action(ActionType.END_PLAYER_TURN)
-
 
     def block(self, game):
         """
@@ -556,14 +577,17 @@ class MyScriptedBot(ProcBot):
         if ActionType.SELECT_DEFENDER_DOWN in actions:
             return Action(ActionType.SELECT_DEFENDER_DOWN)
 
-        if ActionType.SELECT_DEFENDER_STUMBLES in actions and not (defender.has_skill(Skill.DODGE) and not attacker.has_skill(Skill.TACKLE)):
+        if ActionType.SELECT_DEFENDER_STUMBLES in actions and not (defender.has_skill(Skill.DODGE)
+                                                                   and not attacker.has_skill(Skill.TACKLE)):
             return Action(ActionType.SELECT_DEFENDER_STUMBLES)
 
-        if ActionType.SELECT_BOTH_DOWN in actions and not defender.has_skill(Skill.BLOCK) and attacker.has_skill(Skill.BLOCK):
+        if ActionType.SELECT_BOTH_DOWN in actions and not defender.has_skill(Skill.BLOCK) \
+                and attacker.has_skill(Skill.BLOCK):
             return Action(ActionType.SELECT_BOTH_DOWN)
 
         # 2. BOTH DOWN if opponent carries the ball and doesn't have block
-        if ActionType.SELECT_BOTH_DOWN in actions and game.get_ball_carrier() == defender and not defender.has_skill(Skill.BLOCK):
+        if ActionType.SELECT_BOTH_DOWN in actions and game.get_ball_carrier() == defender \
+                and not defender.has_skill(Skill.BLOCK):
             return Action(ActionType.SELECT_BOTH_DOWN)
 
         # 3. USE REROLL if defender carries the ball
@@ -677,7 +701,7 @@ class MyScriptedBot(ProcBot):
 
     def end_game(self, game):
         """
-        Called when a game endw.
+        Called when a game ends.
         """
         winner = game.get_winning_team()
         print("Casualties: ", game.num_casualties())
@@ -692,12 +716,12 @@ class MyScriptedBot(ProcBot):
 
 
 # Register MyScriptedBot
-ffai.register_bot('scripted', MyScriptedBot)
+ffai.register_bot('scripted_plus', ScriptedPlusBot)
 
 if __name__ == "__main__":
 
     # Uncomment to this to evaluate the bot against the random baseline
-    '''
+
     # Load configurations, rules, arena and teams
     config = ffai.load_config("bot-bowl-ii")
     config.competition_mode = False
@@ -711,10 +735,10 @@ if __name__ == "__main__":
 
     # Play 10 games
     for i in range(10):
-        home_agent = ffai.make_bot('scripted')
-        home_agent.name = "Scripted Bot"
-        away_agent = ffai.make_bot('random')
-        away_agent.name = "Random Bot"
+        home_agent = ffai.make_bot('scripted_plus')
+        home_agent.name = "Scripted Plus Bot"
+        away_agent = ffai.make_bot('scripted')
+        away_agent.name = "Scripted Bot"
         config.debug_mode = False
         game = ffai.Game(i, home, away, home_agent, away_agent, config, arena=arena, ruleset=ruleset)
         game.config.fast_mode = True
@@ -724,9 +748,9 @@ if __name__ == "__main__":
         game.init()
         end = time.time()
         print(end - start)
-    '''
 
-    import ffai.web.server as server
-
-    if __name__ == "__main__":
-        server.start_server(debug=True, use_reloader=False)
+    #
+    # import ffai.web.server as server
+    #
+    # if __name__ == "__main__":
+    #     server.start_server(debug=True, use_reloader=False)

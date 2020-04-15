@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-
+import examples.grodbot
 import ffai
-import ffai.ai.bots.testbots
+# import ffai.ai.bots.testbots
 
 
 # Load competition configuration for the bot bowl
@@ -16,5 +16,5 @@ human_team_b = ffai.load_team_by_filename('human', ruleset)
 
 # Random vs. Random
 competition = ffai.Competition('MyCompetition', competitor_a_team=human_team_a, competitor_b_team=human_team_b, competitor_a_name='random', competitor_b_name='grodbot', config=config)
-results = competition.run(num_games=2)
+results = competition.run(num_games=200)
 results.print()

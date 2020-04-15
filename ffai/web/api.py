@@ -19,7 +19,7 @@ def new_game(away_team_name, home_team_name, away_agent=None, home_agent=None, c
     assert away_agent is not None
     assert home_agent is not None
     config = load_config(config_name)
-    # config.competition_mode = True
+    config.competition_mode = False
     ruleset = load_rule_set(config.ruleset, all_rules=False)
     home = load_team_by_name(home_team_name, ruleset, board_size=board_size)
     away = load_team_by_name(away_team_name, ruleset, board_size=board_size)
