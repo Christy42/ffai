@@ -318,7 +318,8 @@ class Game:
                     if action.player is None:
                         print("Illegal player: None")
                     else:
-                        print("Illegal player:", action.player.to_json(), action.action_type.name)
+                        print(action_choice.players)
+                        print("Illegal player:", action.player, action.player.to_json(), action.action_type.name)
                     return False
                 # Check position argument
                 if len(action_choice.positions) > 0 and action.position not in action_choice.positions:

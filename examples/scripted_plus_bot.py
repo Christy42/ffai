@@ -8,6 +8,10 @@ import ffai.ai.pathfinding as pf
 import time
 
 
+SCORE = {}
+COUNT = {}
+
+
 class ScriptedPlusBot(ProcBot):
 
     def __init__(self, name):
@@ -111,11 +115,11 @@ class ScriptedPlusBot(ProcBot):
                 unused_teammates.append(player)
         reroll_proc = game.get_procedure()
         context = reroll_proc.context
-        if len(unused_teammates) < 4:
+        if type(context) == ffai.Pickup:
+            return Action(ActionType.USE_REROLL)
+        if len(unused_teammates) < 4 and game.get_active_player() != game.get_ball_carrier():
             return Action(ActionType.DONT_USE_REROLL)
         if type(context) == ffai.Dodge:
-            return Action(ActionType.USE_REROLL)
-        if type(context) == ffai.Pickup:
             return Action(ActionType.USE_REROLL)
         if type(context) == ffai.PassAction:
             return Action(ActionType.USE_REROLL)
@@ -156,7 +160,7 @@ class ScriptedPlusBot(ProcBot):
         if game.is_team_side(game.get_ball_position(), self.my_team) and \
                 game.get_player_at(game.get_ball_position()) is None:
             for player in game.get_players_on_pitch(self.my_team, up=True):
-                if Skill.BLOCK in player.get_skills():
+                if Skill.BLOCK in player.get_skills() and game.num_tackle_zones_in(player) == 0:
                     return Action(ActionType.SELECT_PLAYER, player=player, position=ball_pos)
         return Action(ActionType.SELECT_NONE)
 
@@ -227,7 +231,7 @@ class ScriptedPlusBot(ProcBot):
         if ball_carrier is not None and ball_carrier.team == self.my_team and not ball_carrier.state.used:
             print("2.1 Can ball carrier score with high probability")
             td_path = pf.get_safest_scoring_path(game, ball_carrier)
-            if td_path is not None and td_path.prob >= 0.7:
+            if td_path is not None and (td_path.prob >=  0.7 or self.my_team.state.turn == 8):
                 self.actions.append(Action(ActionType.START_MOVE, player=ball_carrier))
                 for step in td_path.steps:
                     self.actions.append(Action(ActionType.MOVE, position=step))
@@ -394,7 +398,7 @@ class ScriptedPlusBot(ProcBot):
                                 moves = blitzer.get_ma() if blitzer.state.up or blitzer.has_skill(Skill.JUMP_UP) else \
                                     blitzer.get_ma() + 3
                                 if len(path.steps) > moves:
-                                    path.prob = path.prob * (5.0/6.0)
+                                    path.prob = path.prob * (5.0 / 6.0)
                                 p_self, p_opp, p_fumble_self, p_fumble_opp = \
                                     game.get_blitz_probs(blitzer, adjacent_position, opp_player)
                                 p_self_up = path.prob * (1-p_self)
@@ -402,7 +406,15 @@ class ScriptedPlusBot(ProcBot):
                                 p_fumble_opp = p_fumble_opp * path.prob
                                 if blitzer == game.get_ball_carrier():
                                     p_fumble_self = path.prob + (1 - path.prob) * p_fumble_self
-                                score = p_self_up + p_opp + p_fumble_opp - p_fumble_self
+                                val = 0
+                                if ball_carrier is not None and opp_player is not None:
+                                    if ball_carrier.position.distance(opp_player.position) == 1:
+                                        val = 0.5
+                                    elif ball_carrier.position.distance(opp_player.position) == 2:
+                                        val = 0.25
+                                    elif ball_carrier.position.distance(opp_player.position) == 3:
+                                        val = 0.1
+                                score = p_self_up + p_opp + p_fumble_opp - p_fumble_self + p_opp * val
                                 if best_blitz_score is None or score > best_blitz_score:
                                     best_blitz_attacker = blitzer
                                     best_blitz_defender = opp_player
@@ -706,11 +718,25 @@ class ScriptedPlusBot(ProcBot):
         winner = game.get_winning_team()
         print("Casualties: ", game.num_casualties())
         if winner is None:
+            if self.name == "Scripted Bot":
+                print("here we are")
+                # COUNT[self.opp_team] = COUNT.get(self.opp_team.name, 0) + 1
+                # COUNT[self.my_team] = COUNT.get(self.my_team.name, 0) + 1
+                # SCORE[self.opp_team] = SCORE.get(self.opp_team.name, 0) + self.opp_team.state.score
+                # SCORE[self.my_team] = SCORE.get(self.my_team.name, 0) + self.my_team.state.score
             print("It's a draw")
         elif winner == self.my_team:
+            print("here we are2")
+            # COUNT[self.my_team] = COUNT.get(self.my_team.name, 0) + 1
+            # S CORE[self.opp_team] = SCORE.get(self.opp_team.name, 0) + self.opp_team.state.score
+            # SCORE[self.my_team] = SCORE.get(self.my_team.name, 0) + self.my_team.state.score
             print("I ({}) won".format(self.name))
             print(self.my_team.state.score, "-", self.opp_team.state.score)
         else:
+            print("here we are3")
+            # COUNT[self.opp_team] = COUNT.get(self.opp_team.name, 0) + 1
+            # SCORE[self.opp_team] = SCORE.get(self.opp_team.name, 0) + self.opp_team.state.score
+            # SCORE[self.my_team] = SCORE.get(self.my_team.name, 0) + self.my_team.state.score
             print("I ({}) lost".format(self.name))
             print(self.my_team.state.score, "-", self.opp_team.state.score)
 
@@ -734,7 +760,7 @@ if __name__ == "__main__":
     away = ffai.load_team_by_filename("human", ruleset)
 
     # Play 10 games
-    for i in range(10):
+    for i in range(100):
         home_agent = ffai.make_bot('scripted_plus')
         home_agent.name = "Scripted Plus Bot"
         away_agent = ffai.make_bot('scripted')
@@ -748,9 +774,22 @@ if __name__ == "__main__":
         game.init()
         end = time.time()
         print(end - start)
+        if game.home_agent.my_team.state.score > game.away_agent.my_team.state.score:
+            COUNT[game.home_agent.name] = COUNT.get(game.home_agent.name, 0) + 1
+        elif game.home_agent.my_team.state.score == game.away_agent.my_team.state.score:
+            COUNT[game.home_agent.name] = COUNT.get(game.home_agent.name, 0) + 0.5
+            COUNT[game.away_agent.name] = COUNT.get(game.away_agent.name, 0) + 0.5
+        else:
+            COUNT[game.away_agent.name] = COUNT.get(game.away_agent.name, 0) + 1
+        SCORE[game.home_agent.name] = SCORE.get(game.home_agent.name, 0) + game.home_agent.my_team.state.score
+        SCORE[game.away_agent.name] = SCORE.get(game.away_agent.name, 0) + game.away_agent.my_team.state.score
+    print(SCORE)
+    print(COUNT)
 
-    #
-    # import ffai.web.server as server
-    #
-    # if __name__ == "__main__":
-    #     server.start_server(debug=True, use_reloader=False)
+'''
+
+
+import ffai.web.server as server
+if __name__ == "__main__":
+    server.start_server(debug=True, use_reloader=False)
+'''

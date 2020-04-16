@@ -3,7 +3,9 @@
 import ffai
 from ffai import Action, ActionType, Square, BBDieResult, Skill, PassDistance, Tile, Rules, Formation, ProcBot
 import ffai.ai.pathfinding as pf
+import examples.grodbot
 import time
+
 
 class MyScriptedBot(ProcBot):
 
@@ -145,7 +147,9 @@ class MyScriptedBot(ProcBot):
         if game.is_team_side(game.get_ball_position(), self.my_team) and \
                 game.get_player_at(game.get_ball_position()) is None:
             for player in game.get_players_on_pitch(self.my_team, up=True):
-                if Skill.BLOCK in player.get_skills():
+                if Skill.BLOCK in player.get_skills() and game.num_tackle_zones_in(player) == 0:
+                    print(player)
+                    print(game.get_players_on_pitch(self.my_team, up=True))
                     return Action(ActionType.SELECT_PLAYER, player=player, position=ball_pos)
         return Action(ActionType.SELECT_NONE)
 
@@ -188,9 +192,10 @@ class MyScriptedBot(ProcBot):
         if len(self.actions) > 0:
             action = self._get_next_action()
             return action
-
+        print("value here")
         # Split logic depending on offense, defense, and loose ball - and plan actions
         ball_carrier = game.get_ball_carrier()
+        print("has to be done here")
         self._make_plan(game, ball_carrier)
         action = self._get_next_action()
         return action
@@ -697,7 +702,7 @@ ffai.register_bot('scripted', MyScriptedBot)
 if __name__ == "__main__":
 
     # Uncomment to this to evaluate the bot against the random baseline
-    '''
+
     # Load configurations, rules, arena and teams
     config = ffai.load_config("bot-bowl-ii")
     config.competition_mode = False
@@ -713,7 +718,7 @@ if __name__ == "__main__":
     for i in range(10):
         home_agent = ffai.make_bot('scripted')
         home_agent.name = "Scripted Bot"
-        away_agent = ffai.make_bot('random')
+        away_agent = ffai.make_bot('scripted')
         away_agent.name = "Random Bot"
         config.debug_mode = False
         game = ffai.Game(i, home, away, home_agent, away_agent, config, arena=arena, ruleset=ruleset)
@@ -730,3 +735,4 @@ if __name__ == "__main__":
 
     if __name__ == "__main__":
         server.start_server(debug=True, use_reloader=False)
+'''

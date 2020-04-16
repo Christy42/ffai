@@ -1048,7 +1048,8 @@ class Formation:
 
     def _get_player(self, players, t):
         if t == 'S':
-            idx = np.argmax([player.get_st() + (0.5 if player.has_skill(Skill.BLOCK) else 0) - (0.5 if player.has_skill(Skill.SURE_HANDS) else 0) for player in players])
+            idx = np.argmax([player.get_st() + (0.5 if player.has_skill(Skill.BLOCK) else 0) -
+                             (0.5 if player.has_skill(Skill.SURE_HANDS) else 0) for player in players])
             return players[idx]
         if t == 'm':
             idx = np.argmax([player.get_ma() for player in players])
@@ -1094,11 +1095,18 @@ class Formation:
 
         # Go through formation from scrimmage to touchdown zone
         players = [player for player in game.get_reserves(team) + player_on_pitch]
-
+        print("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
+        print(players)
+        print(game.get_reserves(team))
+        print(player_on_pitch)
+        print(game.get_knocked_out(team))
+        print(game.get_casualties(team))
+        print("YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY")
         positions_used = []
 
         # setup on scrimmage
         for t in ['S', 's', 'p', 'b', 'c', 'm', 'a', 'v', 'd', '0', 'x']:
+            print("soooooooooooooooooooooooooooooooooooooooooooooooooooo{}".format(t))
             for y in range(len(self.formation)):
                 if len(players) == 0:
                     return actions
@@ -1113,10 +1121,14 @@ class Formation:
                     continue
                 player = self._get_player(players, t)
                 players.remove(player)
+                print("cCCCCCCCCCCCCCCCCCCCCC")
+                print(player)
                 actions.append(Action(ActionType.PLACE_PLAYER, position=position, player=player))
+                print("DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD")
                 positions_used.append(position)
 
         for t in ['S', 's', 'p', 'b', 'c', 'm', 'a', 'v', 'd', '0', 'x']:
+            print("sssssssssssssssssssssssssssssssssssssssssssssssss {}".format(t))
             for y in range(len(self.formation)):
                 for x in reversed(range(len(self.formation[0]))):
                     if len(players) == 0:
@@ -1131,6 +1143,9 @@ class Formation:
                         continue
                     player = self._get_player(players, t)
                     players.remove(player)
+                    print("VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV")
+                    print(player)
                     actions.append(Action(ActionType.PLACE_PLAYER, position=position, player=player))
+                    print("IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII")
                     positions_used.append(position)
         return actions
