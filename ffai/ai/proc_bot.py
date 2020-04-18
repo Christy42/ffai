@@ -18,7 +18,7 @@ class ProcBot(Agent):
 
         # Get current procedure
         proc = game.get_procedure()
-        # print(type(proc))
+        print(type(proc))
 
         # Call private function
         if isinstance(proc, CoinTossFlip):

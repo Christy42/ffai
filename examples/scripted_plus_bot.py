@@ -743,7 +743,7 @@ class ScriptedPlusBot(ProcBot):
 
 # Register MyScriptedBot
 ffai.register_bot('scripted_plus', ScriptedPlusBot)
-
+'''
 if __name__ == "__main__":
 
     # Uncomment to this to evaluate the bot against the random baseline
@@ -759,12 +759,15 @@ if __name__ == "__main__":
     home = ffai.load_team_by_filename("human", ruleset)
     away = ffai.load_team_by_filename("human", ruleset)
 
+    count_wins = 0
+    count_draws = 0
+    count_losses = 0
     # Play 10 games
     for i in range(100):
         home_agent = ffai.make_bot('scripted_plus')
         home_agent.name = "Scripted Plus Bot"
-        away_agent = ffai.make_bot('scripted')
-        away_agent.name = "Scripted Bot"
+        away_agent = ffai.make_bot('GrodBot')
+        away_agent.name = "Grod Bot"
         config.debug_mode = False
         game = ffai.Game(i, home, away, home_agent, away_agent, config, arena=arena, ruleset=ruleset)
         game.config.fast_mode = True
@@ -776,20 +779,24 @@ if __name__ == "__main__":
         print(end - start)
         if game.home_agent.my_team.state.score > game.away_agent.my_team.state.score:
             COUNT[game.home_agent.name] = COUNT.get(game.home_agent.name, 0) + 1
+            count_wins += 1
         elif game.home_agent.my_team.state.score == game.away_agent.my_team.state.score:
+            count_draws += 1
             COUNT[game.home_agent.name] = COUNT.get(game.home_agent.name, 0) + 0.5
             COUNT[game.away_agent.name] = COUNT.get(game.away_agent.name, 0) + 0.5
         else:
+            count_losses += 1
             COUNT[game.away_agent.name] = COUNT.get(game.away_agent.name, 0) + 1
         SCORE[game.home_agent.name] = SCORE.get(game.home_agent.name, 0) + game.home_agent.my_team.state.score
         SCORE[game.away_agent.name] = SCORE.get(game.away_agent.name, 0) + game.away_agent.my_team.state.score
     print(SCORE)
     print(COUNT)
-
+    print(count_wins)
+    print(count_draws)
+    print(count_losses)
 '''
 
 
 import ffai.web.server as server
 if __name__ == "__main__":
     server.start_server(debug=True, use_reloader=False)
-'''
